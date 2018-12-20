@@ -1,0 +1,4 @@
+#!bin/bash
+
+echo "run $1";
+./out/bin/$1;

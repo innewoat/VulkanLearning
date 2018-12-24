@@ -22,4 +22,4 @@ After that, just run `make` in this directory. And the bin file will be saved in
 
 And stay in this directory, run     `out/bin/template` or `bash run template`, the result picture will be saved in `out/pic/headless.ppm`.
 
-For the relative path, you shouldn't `cd out\bin`. It will make the program miss the shader file.
+For the relative path, you shouldn't `cd out/bin`. It will make the program miss the shader file.

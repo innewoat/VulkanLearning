@@ -8,8 +8,18 @@ LDFLAGS = -L$(VULKAN_SDK)/lib -lvulkan
 TEMPLATE_SRC_DIR = src/template/
 TEMPLATE_OBJECTS = $(OUT_OBJ_DIR)template.o $(OUT_OBJ_DIR)tools.o
 
-build : $(TEMPLATE_OBJECTS)
-	g++ -o $(OUT_BIN_DIR)template $(TEMPLATE_OBJECTS) $(LDFLAGS)
+TEXTURE_SRC_DIR = src/texture/
+TEXTURE_OBJECTS = $(OUT_OBJ_DIR)texture.o $(OUT_OBJ_DIR)tools.o
+
+ALL_OBJECTS = template
+
+build : $(ALL_OBJECTS)
+
+texture : $(TEXTURE_OBJECTS)
+	g++ $^ -o $(OUT_BIN_DIR)$@ $(LDFLAGS)
+
+template : $(TEMPLATE_OBJECTS)
+	g++ $^ -o $(OUT_BIN_DIR)$@ $(LDFLAGS)
 
 $(OUT_OBJ_DIR)tools.o : $(INCLUDE_DIR)tools.cpp
 	g++ -c $(CFLAGS) $< -o $@ $(LDFLAGS)

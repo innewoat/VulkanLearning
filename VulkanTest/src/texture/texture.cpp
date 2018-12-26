@@ -630,31 +630,426 @@ void Application::setRenderPass()
 
 void Application::setDescriptorSetLayout()
 {
-}
+    VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
+    samplerLayoutBinding.binding = 0;
+    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-void Application::setPipeline()
-{
+    std::vector<VkDescriptorSetLayoutBinding> bindings = {samplerLayoutBinding};
+    VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
+
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout));
 }
 
 void Application::setDescriptorPool()
 {
+    std::vector<VkDescriptorPoolSize> poolSizes;
+    poolSizes.resize(1);
+
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[0].descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = 2;
+
+    VK_CHECK_RESULT(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
 }
 
 void Application::setDescriptorSets()
 {
+    VkDescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &descriptorSetLayout;
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
+
+    VkDescriptorImageInfo imageInfo = {};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = textureImageView;
+    imageInfo.sampler = textureSampler;
+
+    std::vector<VkWriteDescriptorSet> descriptorWrites;
+    descriptorWrites.resize(1);
+
+    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].dstSet = descriptorSet;
+    descriptorWrites[0].dstBinding = 0;
+    descriptorWrites[0].dstArrayElement = 0;
+    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrites[0].descriptorCount = 1;
+    descriptorWrites[0].pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(device, 1, descriptorWrites.data(), 0, nullptr);
+}
+
+void Application::setPipeline()
+{
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+        myvk::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
+
+    // MVP via push constant block
+    VkPushConstantRange pushConstantRange = myvk::initializers::pushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, sizeof(glm::mat4), 0);
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+
+    VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+
+    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+    pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    VK_CHECK_RESULT(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &(pipelineCache)));
+
+    // Create pipeline
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
+        myvk::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+
+    VkPipelineRasterizationStateCreateInfo rasterizationState =
+        myvk::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+
+    VkPipelineColorBlendAttachmentState blendAttachmentState =
+        myvk::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+
+    VkPipelineColorBlendStateCreateInfo colorBlendState =
+        myvk::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
+
+    VkPipelineDepthStencilStateCreateInfo depthStencilState =
+        myvk::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+    VkPipelineViewportStateCreateInfo viewportState =
+        myvk::initializers::pipelineViewportStateCreateInfo(1, 1);
+
+    VkPipelineMultisampleStateCreateInfo multisampleState =
+        myvk::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT);
+
+    std::vector<VkDynamicState> dynamicStateEnables = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicState =
+        myvk::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
+
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo =
+        myvk::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
+
+    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+    pipelineCreateInfo.pRasterizationState = &rasterizationState;
+    pipelineCreateInfo.pColorBlendState = &colorBlendState;
+    pipelineCreateInfo.pMultisampleState = &multisampleState;
+    pipelineCreateInfo.pViewportState = &viewportState;
+    pipelineCreateInfo.pDepthStencilState = &depthStencilState;
+    pipelineCreateInfo.pDynamicState = &dynamicState;
+    pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineCreateInfo.pStages = shaderStages.data();
+
+    // Vertex bindings an attributes
+    // Binding description
+    std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
+        myvk::initializers::vertexInputBindingDescription(0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
+    };
+
+    // Attribute descriptions
+    std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
+        myvk::initializers::vertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0),                 // Position
+        myvk::initializers::vertexInputAttributeDescription(0, 1, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3), // Color
+        myvk::initializers::vertexInputAttributeDescription(0, 2, VK_FORMAT_R32G32_SFLOAT, sizeof(float) * 6),    // Texture Coor
+    };
+
+    VkPipelineVertexInputStateCreateInfo vertexInputState = myvk::initializers::pipelineVertexInputStateCreateInfo();
+    vertexInputState.vertexBindingDescriptionCount = static_cast<uint32_t>(vertexInputBindings.size());
+    vertexInputState.pVertexBindingDescriptions = vertexInputBindings.data();
+    vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
+    vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
+
+    pipelineCreateInfo.pVertexInputState = &vertexInputState;
+
+    shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shaderStages[0].pName = "main";
+    shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shaderStages[1].pName = "main";
+    shaderStages[0].module = myvk::tools::loadShader(ASSET_PATH "shaders/texture/texture.vert.spv", device);
+    shaderStages[1].module = myvk::tools::loadShader(ASSET_PATH "shaders/texture/texture.frag.spv", device);
+    shaderModules = {shaderStages[0].module, shaderStages[1].module};
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipeline));
 }
 
 void Application::setCommand()
 {
+    VkCommandBuffer commandBuffer;
+    VkCommandBufferAllocateInfo cmdBufAllocateInfo =
+        myvk::initializers::commandBufferAllocateInfo(commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &commandBuffer));
+
+    VkCommandBufferBeginInfo cmdBufInfo =
+        myvk::initializers::commandBufferBeginInfo();
+
+    VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
+
+    VkClearValue clearValues[2];
+    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+    clearValues[1].depthStencil = {1.0f, 0};
+
+    VkRenderPassBeginInfo renderPassBeginInfo = {};
+    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassBeginInfo.renderArea.extent.width = width;
+    renderPassBeginInfo.renderArea.extent.height = height;
+    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.pClearValues = clearValues;
+    renderPassBeginInfo.renderPass = renderPass;
+    renderPassBeginInfo.framebuffer = framebuffer;
+
+    vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport = {};
+    viewport.height = (float)height;
+    viewport.width = (float)width;
+    viewport.minDepth = (float)0.0f;
+    viewport.maxDepth = (float)1.0f;
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+    // Update dynamic scissor state
+    VkRect2D scissor = {};
+    scissor.extent.width = width;
+    scissor.extent.height = height;
+    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+    // Render scene
+    VkDeviceSize offsets[1] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
+
+    glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4 view = glm::mat4(1.0f);
+    glm::mat4 projection = glm::mat4(1.0f);
+
+    view = glm::lookAt(
+        glm::vec3(0.0f, 0.0f, 2.0f),
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+
+    projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 10.0f);
+    projection[1][1] = -projection[1][1];
+
+    glm::mat4 mvp = projection * view * model;
+
+    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
+    vkCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+
+    vkCmdEndRenderPass(commandBuffer);
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
+
+    submitWork(commandBuffer, queue);
+
+    vkDeviceWaitIdle(device);
 }
 
 void Application::saveImage()
 {
+    const char *imagedata;
+    // Create the linear tiled destination image to copy to and to read the memory from
+    VkImageCreateInfo imgCreateInfo(myvk::initializers::imageCreateInfo());
+    imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imgCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    imgCreateInfo.extent.width = width;
+    imgCreateInfo.extent.height = height;
+    imgCreateInfo.extent.depth = 1;
+    imgCreateInfo.arrayLayers = 1;
+    imgCreateInfo.mipLevels = 1;
+    imgCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imgCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imgCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+    imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    // Create the image
+    VkImage dstImage;
+    VK_CHECK_RESULT(vkCreateImage(device, &imgCreateInfo, nullptr, &dstImage));
+    // Create memory to back up the image
+    VkMemoryRequirements memRequirements;
+    VkMemoryAllocateInfo memAllocInfo(myvk::initializers::memoryAllocateInfo());
+    VkDeviceMemory dstImageMemory;
+    vkGetImageMemoryRequirements(device, dstImage, &memRequirements);
+    memAllocInfo.allocationSize = memRequirements.size;
+    // Memory must be host visible to copy from
+    memAllocInfo.memoryTypeIndex = getMemoryTypeIndex(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &dstImageMemory));
+    VK_CHECK_RESULT(vkBindImageMemory(device, dstImage, dstImageMemory, 0));
+
+    // Do the actual blit from the offscreen image to our host visible destination image
+    VkCommandBufferAllocateInfo cmdBufAllocateInfo = myvk::initializers::commandBufferAllocateInfo(commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
+    VkCommandBuffer copyCmd;
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &copyCmd));
+    VkCommandBufferBeginInfo cmdBufInfo = myvk::initializers::commandBufferBeginInfo();
+    VK_CHECK_RESULT(vkBeginCommandBuffer(copyCmd, &cmdBufInfo));
+
+    // Transition destination image to transfer destination layout
+    myvk::tools::insertImageMemoryBarrier(
+        copyCmd,
+        dstImage,
+        0,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
+    // colorAttachment.image is already in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, and does not need to be transitioned
+
+    VkImageCopy imageCopyRegion{};
+    imageCopyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageCopyRegion.srcSubresource.layerCount = 1;
+    imageCopyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageCopyRegion.dstSubresource.layerCount = 1;
+    imageCopyRegion.extent.width = width;
+    imageCopyRegion.extent.height = height;
+    imageCopyRegion.extent.depth = 1;
+
+    vkCmdCopyImage(
+        copyCmd,
+        colorAttachment.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &imageCopyRegion);
+
+    // Transition destination image to general layout, which is the required layout for mapping the image memory later on
+    myvk::tools::insertImageMemoryBarrier(
+        copyCmd,
+        dstImage,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(copyCmd));
+
+    submitWork(copyCmd, queue);
+
+    // Get layout of the image (including row pitch)
+    VkImageSubresource subResource{};
+    subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    VkSubresourceLayout subResourceLayout;
+
+    vkGetImageSubresourceLayout(device, dstImage, &subResource, &subResourceLayout);
+
+    // Map image memory so we can start copying from it
+    vkMapMemory(device, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void **)&imagedata);
+    imagedata += subResourceLayout.offset;
+
+    /*
+		Save host visible framebuffer image to disk (ppm format)
+	*/
+    const char *filename = "./out/pic/texture.ppm";
+    std::ofstream file(filename, std::ios::out | std::ios::binary);
+
+    // ppm header
+    file << "P6\n"
+         << width << "\n"
+         << height << "\n"
+         << 255 << "\n";
+
+    // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
+    // Check if source is BGR and needs swizzle
+    std::vector<VkFormat> formatsBGR = {VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SNORM};
+    const bool colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), VK_FORMAT_R8G8B8A8_UNORM) != formatsBGR.end());
+
+    // ppm binary pixel data
+    for (int32_t y = 0; y < height; y++)
+    {
+        unsigned int *row = (unsigned int *)imagedata;
+        for (int32_t x = 0; x < width; x++)
+        {
+            if (colorSwizzle)
+            {
+                file.write((char *)row + 2, 1);
+                file.write((char *)row + 1, 1);
+                file.write((char *)row, 1);
+            }
+            else
+            {
+                file.write((char *)row, 3);
+            }
+            row++;
+        }
+        imagedata += subResourceLayout.rowPitch;
+    }
+    file.close();
+
+    printf("Framebuffer image saved to %s\n", filename);
+
+    // Clean up resources
+    vkUnmapMemory(device, dstImageMemory);
+    vkFreeMemory(device, dstImageMemory, nullptr);
+    vkDestroyImage(device, dstImage, nullptr);
 }
 
 Application::~Application()
 {
-    std::cout << "desc" << std::endl;
+    vkDestroySampler(device, textureSampler, nullptr);
+    vkDestroyImageView(device, textureImageView, nullptr);
+    vkDestroyImage(device, textureImage, nullptr);
+    vkFreeMemory(device, textureImageMemory, nullptr);
+    vkDestroyBuffer(device, vertexBuffer, nullptr);
+    vkFreeMemory(device, vertexMemory, nullptr);
+    vkDestroyImageView(device, colorAttachment.view, nullptr);
+    vkDestroyImage(device, colorAttachment.image, nullptr);
+    vkFreeMemory(device, colorAttachment.memory, nullptr);
+    vkDestroyImageView(device, depthAttachment.view, nullptr);
+    vkDestroyImage(device, depthAttachment.image, nullptr);
+    vkFreeMemory(device, depthAttachment.memory, nullptr);
+    vkDestroyRenderPass(device, renderPass, nullptr);
+    vkDestroyFramebuffer(device, framebuffer, nullptr);
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    vkDestroyPipeline(device, pipeline, nullptr);
+    vkDestroyPipelineCache(device, pipelineCache, nullptr);
+    vkDestroyCommandPool(device, commandPool, nullptr);
+    for (auto shadermodule : shaderModules)
+    {
+        vkDestroyShaderModule(device, shadermodule, nullptr);
+    }
+    vkDestroyDevice(device, nullptr);
+#if DEBUG
+    if (debugReportCallback)
+    {
+        PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallback = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT"));
+        assert(vkDestroyDebugReportCallback);
+        vkDestroyDebugReportCallback(instance, debugReportCallback, nullptr);
+    }
+#endif
+    vkDestroyInstance(instance, nullptr);
+}
+
+void Application::run()
+{
+    setInstance();
+    setDevice();
+    setTexture();
+    setVertex();
+    setFramebufferAtta();
+    setRenderPass();
+    setDescriptorSetLayout();
+    setDescriptorPool();
+    setDescriptorSets();
+    setPipeline();
+    setCommand();
+    saveImage();
 }
 
 int main()

@@ -27,9 +27,9 @@ struct FrameBufferAttachment
 };
 struct Vertex
 {
-    glm::vec3 pos;
-    glm::vec3 color;
-    glm::vec2 texCoord;
+    float pos[3];
+    float color[3];
+    float texCoord[2];
 };
 struct BufferCreateInfo
 {
@@ -79,6 +79,14 @@ class Application
     FrameBufferAttachment colorAttachment, depthAttachment;
 
     VkRenderPass renderPass;
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSet descriptorSet;
+
+    std::vector<VkShaderModule> shaderModules;
+    VkPipelineLayout pipelineLayout;
+    VkPipeline pipeline;
+    VkPipelineCache pipelineCache;
 
   public:
     ~Application();
@@ -102,9 +110,11 @@ class Application
     void setFramebufferAtta();
     void setRenderPass();
     void setDescriptorSetLayout();
-    void setPipeline();
     void setDescriptorPool();
     void setDescriptorSets();
+    void setPipeline();
     void setCommand();
     void saveImage();
+
+    void run();
 };

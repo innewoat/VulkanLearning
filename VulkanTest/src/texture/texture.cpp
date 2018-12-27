@@ -448,13 +448,27 @@ void Application::setTexture()
 void Application::setVertex()
 {
     std::vector<Vertex> vs = {
-        {{-1.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-        {{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
-        {{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
-        {{1.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}};
+        {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+        {{0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+        {{1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+        {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+        {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+        {{1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    };
 
+    vertices = vs;
     VkDeviceSize vertexBufferSize = vertices.size() * sizeof(Vertex);
 
     VkBuffer stagingBuffer;
@@ -485,6 +499,8 @@ void Application::setVertex()
 
 void Application::setFramebufferAtta()
 {
+    width = 1024;
+    height = 1024;
     VkFormat colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
     VkFormat depthFormat;
     myvk::tools::getSupportedDepthFormat(physicalDevice, &depthFormat);
@@ -658,7 +674,7 @@ void Application::setDescriptorPool()
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = 2;
+    poolInfo.maxSets = 1;
 
     VK_CHECK_RESULT(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
 }
@@ -798,7 +814,7 @@ void Application::setCommand()
     VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
     VkClearValue clearValues[2];
-    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+    clearValues[0].color = {{0.0f, 0.2f, 0.0f, 1.0f}};
     clearValues[1].depthStencil = {1.0f, 0};
 
     VkRenderPassBeginInfo renderPassBeginInfo = {};
@@ -836,8 +852,8 @@ void Application::setCommand()
     glm::mat4 projection = glm::mat4(1.0f);
 
     view = glm::lookAt(
-        glm::vec3(0.0f, 0.0f, 2.0f),
-        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.5f, 1.5f, 2.5f),
+        glm::vec3(0.2f, 0.2f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f));
 
     projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 10.0f);
@@ -846,6 +862,9 @@ void Application::setCommand()
     glm::mat4 mvp = projection * view * model;
 
     vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
+
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+
     vkCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
@@ -1055,5 +1074,6 @@ void Application::run()
 int main()
 {
     Application app;
+    app.run();
     return 0;
 }

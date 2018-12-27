@@ -581,7 +581,7 @@ void setCommand(AppData &appData)
     glm::mat4 mvp = projection * view * model;
 
     vkCmdPushConstants(commandBuffer, appData.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
-    vkCmdDraw(commandBuffer, 3 * appData.vertices.size(), 1, 0, 0);
+    vkCmdDraw(commandBuffer, appData.vertices.size(), 1, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 
